@@ -86,7 +86,7 @@ public class RedisMessenger implements Messenger {
         public void run() {
             boolean first = true;
             while ((!Thread.interrupted() && !RedisMessenger.this.jedisPool.isClosed()) || !isSubscribed()) {
-                if (!isSubscribed()) {
+                if (!isSubscribed() && !first) {
                     RedisMessenger.logger.warn("Seems like redis pubsub has been unsubscribed, trying to re-subscribe to channel");
                 }
                 try (Jedis jedis = RedisMessenger.this.jedisPool.getResource()) {
