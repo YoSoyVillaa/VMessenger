@@ -5,20 +5,25 @@ import net.ibxnjadev.vmessenger.universal.DefaultInterceptorHandler;
 import net.ibxnjadev.vmessenger.universal.InterceptorHandler;
 import net.ibxnjadev.vmessenger.universal.Messenger;
 import net.ibxnjadev.vmessenger.universal.message.Message;
-import net.ibxnjadev.vmessenger.universal.message.MessageProvider;
 import net.ibxnjadev.vmessenger.universal.serialize.ObjectSerialize;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPubSub;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 public class RedisMessenger implements Messenger {
 
+    private static final Logger logger = LoggerFactory.getLogger("RedisMessenger");
     private final InterceptorHandler interceptorHandler;
     private final ObjectSerialize objectSerialize;
     private final JedisPool jedisPool;
 
-    private final MessageProvider messageProvider = new MessageProvider();
     private final ObjectMapper mapper;
 
     private final String channelName;
@@ -43,7 +48,10 @@ public class RedisMessenger implements Messenger {
         this.channelName = channelName;
         this.mapper = mapper;
 
-        RedisSubscriber subscriber = new RedisSubscriber(channelName, jedis, mapper, this);
+        RedisMessageListener redisMessageListener = new RedisMessageListener();
+        CompletableFuture.runAsync(redisMessageListener);
+
+        //RedisSubscriber subscriber = new RedisSubscriber(channelName, jedis, mapper, this);
     }
 
     @Override
@@ -70,5 +78,52 @@ public class RedisMessenger implements Messenger {
     @Override
     public InterceptorHandler getInterceptorHandler() {
         return interceptorHandler;
+    }
+
+    private class RedisMessageListener extends JedisPubSub implements Runnable {
+
+        @Override
+        public void run() {
+            boolean first = true;
+            while ((!Thread.interrupted() && !RedisMessenger.this.jedisPool.isClosed()) || !isSubscribed()) {
+                if (!isSubscribed()) {
+                    RedisMessenger.logger.warn("Seems like redis pubsub has been unsubscribed, trying to re-subscribe to channel");
+                }
+                try (Jedis jedis = RedisMessenger.this.jedisPool.getResource()) {
+                    if (first) {
+                        first = false;
+                    } else {
+                        RedisMessenger.logger.info("Redis pubsub connection re-established");
+                    }
+
+                    jedis.subscribe(this, channelName);
+                } catch (Exception e) {
+                    RedisMessenger.logger.warn("Redis pubsub connection dropped, trying to re-open the connection", e);
+
+                    try {
+                        unsubscribe();
+                    } catch (Exception ignored) {
+                    }
+
+                    // Sleep for 5 seconds to prevent massive spam in console
+                    try {
+                        Thread.sleep(5000);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        }
+
+        @Override
+        public void onMessage(String channel, String content) {
+            try {
+                Message message = mapper.readValue(content, Message.class);
+                RedisMessenger.this.call(message.getSubChannel(), message.getContent());
+                unsubscribe(channelName);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
