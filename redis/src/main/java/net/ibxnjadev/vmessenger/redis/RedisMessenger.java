@@ -120,7 +120,6 @@ public class RedisMessenger implements Messenger {
             try {
                 Message message = mapper.readValue(content, Message.class);
                 RedisMessenger.this.call(message.getSubChannel(), message.getContent());
-                unsubscribe(channelName);
             } catch (IOException e) {
                 e.printStackTrace();
             }
