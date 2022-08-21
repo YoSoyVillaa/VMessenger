@@ -14,8 +14,6 @@ import redis.clients.jedis.JedisPubSub;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 
 public class RedisMessenger implements Messenger {
 
@@ -50,8 +48,6 @@ public class RedisMessenger implements Messenger {
 
         RedisMessageListener redisMessageListener = new RedisMessageListener();
         CompletableFuture.runAsync(redisMessageListener);
-
-        //RedisSubscriber subscriber = new RedisSubscriber(channelName, jedis, mapper, this);
     }
 
     @Override
