@@ -6,18 +6,17 @@ import net.ibxnjadev.vmessenger.universal.InterceptorHandler;
 import net.ibxnjadev.vmessenger.universal.Messenger;
 import net.ibxnjadev.vmessenger.universal.message.Message;
 import net.ibxnjadev.vmessenger.universal.serialize.ObjectSerialize;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPubSub;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Logger;
 
 public class RedisMessenger implements Messenger {
 
-    private static final Logger logger = LoggerFactory.getLogger("RedisMessenger");
+    private static final Logger logger = Logger.getLogger("RedisMessenger");
     private final InterceptorHandler interceptorHandler;
     private final ObjectSerialize objectSerialize;
     private final JedisPool jedisPool;
@@ -83,7 +82,7 @@ public class RedisMessenger implements Messenger {
             boolean first = true;
             while ((!Thread.interrupted() && !RedisMessenger.this.jedisPool.isClosed()) || !isSubscribed()) {
                 if (!isSubscribed() && !first) {
-                    RedisMessenger.logger.warn("Seems like redis pubsub has been unsubscribed, trying to re-subscribe to channel");
+                    RedisMessenger.logger.warning("Seems like redis pubsub has been unsubscribed, trying to re-subscribe to channel");
                 }
                 try (Jedis jedis = RedisMessenger.this.jedisPool.getResource()) {
                     if (first) {
@@ -94,7 +93,7 @@ public class RedisMessenger implements Messenger {
 
                     jedis.subscribe(this, channelName);
                 } catch (Exception e) {
-                    RedisMessenger.logger.warn("Redis pubsub connection dropped, trying to re-open the connection", e);
+                    RedisMessenger.logger.warning("Redis pubsub connection dropped, trying to re-open the connection: " + e);
 
                     try {
                         unsubscribe();
